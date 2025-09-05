@@ -1,0 +1,112 @@
+services:
+  notebooks:
+    container_name: notebooks
+    build:
+      context: .
+      dockerfile: composer/Dockerfile
+    volumes:
+      - ./notebooks:/app/notebooks
+    ports:
+      - "8888:8888"
+      - "5678:5678"
+    environment:
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL}
+      - OLLAMA_HOST=ollama
+      - OLLAMA_ADDRESS=${OLLAMA_ADDRESS}
+      - OLLAMA_PORT=${OLLAMA_PORT}
+      - DATABASE_PORT=${DATABASE_PORT}
+      - IP_ADDRESS=${DOCKER_GATEWAY_HOST:-host.docker.internal}
+    restart: no
+    depends_on:
+      - ollama
+      - db
+    networks:
+      - rag
+
+  ollama:
+    container_name: ollama
+    build:
+      context: ./ollama
+    pull_policy: always
+    volumes:
+      - ./ollama:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT}:${OLLAMA_PORT}"
+    environment:
+      - OLLAMA_MODEL=${OLLAMA_MODEL}
+      - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL}
+      - OLLAMA_MAX_LOADED_MODELS=2
+      - OLLAMA_KEEP_ALIVE=4h
+      - OLLAMA_HOST=0.0.0.0:${OLLAMA_PORT}
+    restart: no
+    depends_on:
+      - db
+    networks:
+      - rag
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  zipkin:
+    container_name: zipkin
+    image: openzipkin/zipkin
+    ports:
+      - "9411:9411"
+    depends_on: [otel-collector]
+    networks:
+      - rag
+
+  otel-collector:
+    container_name: otel-collector
+    image: otel/opentelemetry-collector-contrib:0.111.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./database/otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    networks:
+      - rag
+
+  db:
+    container_name: chroma_db
+    build:
+      context: ./database
+    volumes:
+      - ./database/chroma-data:/data
+#      - ./database/config.yaml:/config.yaml
+    ports:
+      - "${DATABASE_PORT}:8000"
+    environment:
+      - ALLOW_RESET=true
+      - CHROMA_OPEN_TELEMETRY__ENDPOINT=http://otel-collector:4317/
+      - CHROMA_OPEN_TELEMETRY__SERVICE_NAME=chroma
+    restart: no
+    depends_on:
+      - otel-collector
+      - zipkin
+    networks:
+      - rag
+
+  frontend:
+    container_name: frontend
+    build:
+      context: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - TEST_VARIABLE=1
+    restart: no
+    depends_on:
+      - notebooks
+      - db
+    networks:
+      - rag
+    
+
+
+networks:
+  rag:
+    external: false

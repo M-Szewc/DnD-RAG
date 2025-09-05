@@ -1,0 +1,21 @@
+# ignore database data
+chroma-data/*
+
+# ignore frontend packages and build
+RAG-frontend/node-modules/*
+RAG-frontend/dist/*
+
+# ignore copies of site data
+htmls/*
+notebooks/htmls/*
+notebooks/docstore/*
+
+# notebook
+.ipynb_checkpoints/*
+.Trash-0/*
+
+# ignore models and ids
+ollama/models/*
+ollama/id_ed*
+
+.env

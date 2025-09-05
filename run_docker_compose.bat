@@ -1,0 +1,1 @@
+docker-compose --project-directory . -f composer/compose.yaml --progress=plain up -d

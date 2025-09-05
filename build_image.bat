@@ -1,0 +1,1 @@
+docker buildx build --tag rag-jupyter:latest -f composer/Dockerfile .
